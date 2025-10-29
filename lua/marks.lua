@@ -8,12 +8,13 @@ vim.opt.signcolumn = "yes"
 
 local ns = "MarksSigns"
 
-local function ensure_sign_defined(letter)
+local function ensure_sign_defined(letter, texthl)
+	texthl = texthl or "String"
 	local name = "Mark_" .. letter
 	if not vim.fn.sign_getdefined(name)[1] then
 		vim.fn.sign_define(name, {
 			text = letter,
-			texthl = "String",
+			texthl = texthl,
 			numhl = "",
 		})
 	end
@@ -25,8 +26,10 @@ local function mark_lines(marks)
 	for _, mark in ipairs(marks) do
 		local lnum = mark.pos[2]
 		local letter = mark.mark:sub(2) -- "'a" → "a"
-		if lnum and lnum > 0 and letter:match("%l") then
-			local sign_name = ensure_sign_defined(letter)
+		local is_current_buf = mark.pos[1] == buf
+		if is_current_buf and lnum and lnum > 0 and letter:match("%a") then
+			local texthl = letter:match("%l") and "String" or "Constant"
+			local sign_name = ensure_sign_defined(letter, texthl)
 			vim.fn.sign_place(0, ns, sign_name, buf, { lnum = lnum })
 		end
 	end
@@ -38,17 +41,25 @@ local function update_marks()
 		return
 	end
 	local buf = vim.api.nvim_get_current_buf()
+	local global_marks = vim.fn.getmarklist()
 	local marks = vim.fn.getmarklist(buf)
 
 	vim.fn.sign_unplace(ns)
 
-	if #marks == 0 then
+	if #marks == 0 and #global_marks == 0 then
 		return
 	end
 
 	local valid = {}
+
 	for _, mark in ipairs(marks) do
-		if mark.mark ~= "'." and mark.mark ~= "'\"" and mark.mark:match("^'[a-z]$") then
+		if mark.mark:match("^'[a-z]$") then
+			table.insert(valid, mark)
+		end
+	end
+
+	for _, mark in ipairs(global_marks) do
+		if mark.mark:match("^'[A-Z]$") then
 			table.insert(valid, mark)
 		end
 	end
